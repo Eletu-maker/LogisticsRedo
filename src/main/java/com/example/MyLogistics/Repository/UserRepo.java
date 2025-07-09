@@ -10,7 +10,7 @@ import java.util.List;
 public interface UserRepo extends MongoRepository<Users,String> {
     Users findByEmail(String email);
 
-    Users findAllByPhoneNumber(String phoneNumber);
+
 
     boolean existsByEmail(String email);
     Users findByPhoneNumber(String phoneNumber);

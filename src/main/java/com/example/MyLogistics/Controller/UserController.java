@@ -110,7 +110,7 @@ public class UserController {
     }
 
     @PostMapping("/logOut")
-    public ResponseEntity<?> logOut (@RequestBody RequestEmail request){
+    public ResponseEntity<?> logOut (@RequestBody LogOutRequest request){
         try {
             ResponseEmail response = service.logOut(request);
             return new ResponseEntity<>(new ApiResponse(true,response),HttpStatus.OK);
@@ -118,4 +118,6 @@ public class UserController {
             return new ResponseEntity<>(new ApiResponse(false,e.getMessage()), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
+
+
 }

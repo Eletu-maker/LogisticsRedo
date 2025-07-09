@@ -4,6 +4,8 @@ import com.example.MyLogistics.Model.Users;
 import com.example.MyLogistics.Repository.UserRepo;
 import com.example.MyLogistics.Service.JWTServices;
 import com.example.MyLogistics.Service.MyUserDetailsService;
+import com.example.MyLogistics.Service.TokenBlacklistService;
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -34,6 +36,9 @@ public class JWTFilter extends OncePerRequestFilter {
     private UserRepo userRepo;
 
     @Autowired
+    private TokenBlacklistService blacklistService;
+
+    @Autowired
     private ApplicationContext context;
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
@@ -43,8 +48,25 @@ public class JWTFilter extends OncePerRequestFilter {
 
         if(authHeader != null && authHeader.startsWith("Bearer ")){
             token = authHeader.substring(7);
-            email = jwtServices.extractEmail(token);
-            logger.debug("Extracted token for user: {}", email);
+            try {
+
+                if (blacklistService.isBlacklisted(token)) {
+                    logger.warn("Token is blacklisted");
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.getWriter().write("Token is blacklisted");
+                    return;
+                }
+
+
+                email = jwtServices.extractEmail(token);
+                logger.debug("Extracted token for user: {}", email);
+
+            } catch (Exception e) {
+                logger.error("Failed to process JWT", e);
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.getWriter().write("Invalid token");
+                return;
+            }
         }
         try {
             if(email != null && SecurityContextHolder.getContext().getAuthentication() == null){
@@ -68,7 +90,8 @@ public class JWTFilter extends OncePerRequestFilter {
                 }
             }
 
-        } catch (Exception e) {
+        } catch (JwtException | IllegalArgumentException e) {
+            logger.error("JWT processing failed", e);
             SecurityContextHolder.clearContext();
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.getWriter().write("Invalid or expired token");
@@ -81,7 +104,7 @@ public class JWTFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request){
         String path = request.getServletPath();
-        return path.equals("/login") || path.equals("/register")|| path.equals("/refresh");
+        return path.equals("/api/login") || path.equals("/api/register");
     }
 
 }

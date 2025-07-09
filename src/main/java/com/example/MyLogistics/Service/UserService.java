@@ -5,10 +5,8 @@ import com.example.MyLogistics.DTO.Response.*;
 import com.example.MyLogistics.Exceptions.LoginException;
 import com.example.MyLogistics.Exceptions.OrderRiderException;
 import com.example.MyLogistics.Exceptions.RegistrationException;
-import com.example.MyLogistics.Model.Activity;
-import com.example.MyLogistics.Model.Ride;
-import com.example.MyLogistics.Model.Role;
-import com.example.MyLogistics.Model.Users;
+import com.example.MyLogistics.Model.*;
+import com.example.MyLogistics.Repository.BlacklistedTokenRepository;
 import com.example.MyLogistics.Repository.Rides;
 import com.example.MyLogistics.Repository.UserRepo;
 import com.example.MyLogistics.Validation.Validation;
@@ -22,6 +20,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.nio.channels.AcceptPendingException;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -40,6 +39,11 @@ public class UserService {
 
     @Autowired
     AuthenticationManager manager;
+
+    @Autowired
+    private TokenBlacklistService tokenBlacklistService;
+
+
 
 
     private BCryptPasswordEncoder encoder = new BCryptPasswordEncoder(12);
@@ -77,13 +81,12 @@ public class UserService {
         Authentication authentication = manager.authenticate(new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword()));
         if (authentication.isAuthenticated()) {
             String accessToken = jwtServices.generateToken(request.getEmail());
-            String refreshToken = jwtServices.generateRefreshToken(request.getEmail());
             users.setLogin(true);
             users.setAvailable(true);
             logger.info("Login successful for user: {}", request.getEmail());
             response.setMessage("login Successful");
             response.setAccessToken(accessToken);
-            response.setRefreshToken(refreshToken);
+
             repo.save(users);
             return response;
         }
@@ -91,9 +94,11 @@ public class UserService {
         throw  new LoginException("Wrong password");
     }
 
-    public ResponseEmail logOut(RequestEmail request){
+    public ResponseEmail logOut(LogOutRequest request){
         ResponseEmail response = new ResponseEmail();
         Users users = repo.findByEmail(request.getEmail());
+        long expirationMillis = jwtServices.getExpiration(request.getToken());
+        tokenBlacklistService.blacklist(request.getToken(),expirationMillis);
         if (users == null) throw new LoginException("User not found");
         if (!users.isLogin()) throw new LoginException("User is already logged out");
         if(users.getRide() != null)throw new LoginException("Can't log out until package is delivered");
@@ -244,7 +249,7 @@ public class UserService {
         CancelResponse response = new CancelResponse();
         Users users = repo.findByEmail(request.getEmail());
         if(users.getActivity().equals(Activity.RIDER))throw  new OrderRiderException("This function are for customer only");
-        if(users.getRide().isRideStarted())throw  new OrderRiderException("Can't cancel ride until order is complete");
+        if(users.getRide() == null || users.getRide().isRideStarted())throw  new OrderRiderException("Can't cancel ride until order is complete");
         Users rider = repo.findByPhoneNumber(users.getRide().getRiderPhoneNumber());
         rider.setRide(null);
         rider.setAvailable(true);
@@ -254,6 +259,7 @@ public class UserService {
         response.setMessage("Ride Cancel");
         return response;
     }
+
 
 
 

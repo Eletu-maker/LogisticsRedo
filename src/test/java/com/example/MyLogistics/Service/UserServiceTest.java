@@ -75,8 +75,10 @@ public class UserServiceTest {
 
     @Test
     public void testUserCanLogOut(){
-        RequestEmail requestEmail = new RequestEmail();
+        LogOutRequest requestEmail = new LogOutRequest();
         requestEmail.setEmail("magic@gmail.com");
+        requestEmail.setToken("tgch");
+
         ResponseEmail response = service.logOut(requestEmail);
         assertEquals("Logged out.",response.getMessage());
     }
